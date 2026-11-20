@@ -137,7 +137,7 @@ jobs:
         with:
           tag_name: slackquick-v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          make_latest: 'false'
+          make_latest: 'true'
           name: SlackQuick v${{ env.VERSION }}
           body: |
             - Windows: `SlackQuick-Windows-x64.exe` (설치 없이 실행)
@@ -145,13 +145,6 @@ jobs:
           files: |
             dist/SlackQuick-Windows-x64.exe
             dist/SlackQuick-macOS.zip
-      - name: Keep TextReplace release as "latest"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName,isDraft,isPrerelease \
-            --jq '[.[] | select((.tagName | startswith("slackquick")) | not) | select(.isDraft | not) | select(.isPrerelease | not)][0].tagName')
-          if [ -n "$tag" ] && [ "$tag" != "null" ]; then gh release edit "$tag" --latest -R ${{ github.repository }}; fi
 
   report:
     needs: [windows, mac, release]
