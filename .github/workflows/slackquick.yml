@@ -17,8 +17,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
       - name: Publish (WinUI 3, self contained single file)
@@ -52,17 +52,17 @@ jobs:
           if (Test-Path $log) { Copy-Item $log shots\selftest.log; Get-Content $log } else { "no log" | Set-Content shots\selftest.log }
           if (-not (Select-String -Path shots\selftest.log -Pattern '^OK$' -Quiet)) { Write-Output "::error::self test failed"; exit 1 }
           if (Select-String -Path shots\selftest.log -Pattern '^ERROR' -Quiet) { Write-Output "::error::self test reported errors"; exit 1 }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: log-screens
           path: shots
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: log-windows
           path: windows.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: SlackQuick-Windows
           path: dist/SlackQuick-Windows-x64.exe
@@ -70,7 +70,7 @@ jobs:
   mac:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build universal binary
         working-directory: mac/SlackQuick
         run: |
@@ -109,17 +109,17 @@ jobs:
           cat shots-mac/selftest-mac.log
           tail -n 20 selftest-mac.out || true
           grep -qx OK shots-mac/selftest-mac.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: log-screens-mac
           path: shots-mac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: log-mac
           path: mac.log
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: SlackQuick-macOS
           path: dist/SlackQuick-macOS.zip
@@ -128,12 +128,12 @@ jobs:
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           pattern: SlackQuick-*
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: slackquick-v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
@@ -158,7 +158,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: logs
           pattern: log-*
