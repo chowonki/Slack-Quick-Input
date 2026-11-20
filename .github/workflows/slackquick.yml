@@ -1,0 +1,189 @@
+name: SlackQuick Build
+
+# 빌드는 연결된 컴퓨터에서 직접 합니다. 이 워크플로는 필요할 때 수동으로만 실행하세요.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VERSION: 1.8.${{ github.run_number }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish (WinUI 3, self contained single file)
+        run: |
+          set -o pipefail
+          dotnet publish windows/SlackQuick/SlackQuick.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true \
+            -p:Version=$VERSION -o out 2>&1 | tee windows.log
+          mkdir -p dist
+          cp out/SlackQuick.exe dist/SlackQuick-Windows-x64.exe
+          ls -la out | head -40
+      - name: Self test (open every window, take screenshots)
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          New-Item -ItemType Directory -Force shots | Out-Null
+          $p = Start-Process "$PWD\out\SlackQuick.exe" -ArgumentList '--selftest' -PassThru
+          for ($i = 0; $i -lt 24; $i++) {
+            Start-Sleep -Milliseconds 2000
+            try {
+              $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+              $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+              $bmp.Save("$PWD\shots\shot$('{0:D2}' -f $i).png")
+              $g.Dispose(); $bmp.Dispose()
+            } catch { Write-Output "screenshot failed: $_" }
+            if ($p.HasExited) { break }
+          }
+          if (-not $p.HasExited) { $p.Kill(); Write-Output "self test timed out" }
+          $log = "$env:APPDATA\SlackQuick\selftest.log"
+          if (Test-Path $log) { Copy-Item $log shots\selftest.log; Get-Content $log } else { "no log" | Set-Content shots\selftest.log }
+          if (-not (Select-String -Path shots\selftest.log -Pattern '^OK$' -Quiet)) { Write-Output "::error::self test failed"; exit 1 }
+          if (Select-String -Path shots\selftest.log -Pattern '^ERROR' -Quiet) { Write-Output "::error::self test reported errors"; exit 1 }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-screens
+          path: shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-windows
+          path: windows.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SlackQuick-Windows
+          path: dist/SlackQuick-Windows-x64.exe
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal binary
+        working-directory: mac/SlackQuick
+        run: |
+          set -o pipefail
+          swift build -c release --arch arm64 --arch x86_64 2>&1 | tee ../../mac.log
+      - name: Bundle .app
+        run: |
+          APP=dist/SlackQuick.app
+          mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
+          cp mac/SlackQuick/.build/apple/Products/Release/SlackQuick $APP/Contents/MacOS/SlackQuick
+          sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/${{ github.run_number }}/" mac/SlackQuick/Info.plist > $APP/Contents/Info.plist
+          # 앱 아이콘 (icon.png → AppIcon.icns)
+          ICONSET=build/AppIcon.iconset
+          mkdir -p $ICONSET
+          for s in 16 32 128 256 512; do
+            sips -z $s $s mac/SlackQuick/icon.png --out $ICONSET/icon_${s}x${s}.png >/dev/null
+            d=$((s*2))
+            sips -z $d $d mac/SlackQuick/icon.png --out $ICONSET/icon_${s}x${s}@2x.png >/dev/null
+          done
+          iconutil -c icns $ICONSET -o $APP/Contents/Resources/AppIcon.icns
+          codesign --force --deep --sign - $APP
+          cd dist && ditto -c -k --keepParent SlackQuick.app SlackQuick-macOS.zip
+      - name: Self test (open every window, take screenshots)
+        run: |
+          mkdir -p shots-mac
+          dist/SlackQuick.app/Contents/MacOS/SlackQuick --selftest > selftest-mac.out 2>&1 &
+          PID=$!
+          for i in $(seq -w 0 23); do
+            sleep 2
+            screencapture -x shots-mac/mac$i.png 2>/dev/null && sips -Z 1400 shots-mac/mac$i.png >/dev/null 2>&1 || true
+            kill -0 $PID 2>/dev/null || break
+          done
+          kill $PID 2>/dev/null || true
+          LOG="$HOME/Library/Application Support/SlackQuick/selftest.log"
+          if [ -f "$LOG" ]; then cp "$LOG" shots-mac/selftest-mac.log; else echo "no log" > shots-mac/selftest-mac.log; fi
+          cat shots-mac/selftest-mac.log
+          tail -n 20 selftest-mac.out || true
+          grep -qx OK shots-mac/selftest-mac.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-screens-mac
+          path: shots-mac
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-mac
+          path: mac.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SlackQuick-macOS
+          path: dist/SlackQuick-macOS.zip
+
+  release:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: SlackQuick-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: slackquick-v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          make_latest: 'false'
+          name: SlackQuick v${{ env.VERSION }}
+          body: |
+            - Windows: `SlackQuick-Windows-x64.exe` (설치 없이 실행)
+            - macOS 13+: `SlackQuick-macOS.zip` (압축 해제 후 응용 프로그램 폴더로 이동, 처음엔 우클릭 > 열기, 손쉬운 사용 권한 허용)
+          files: |
+            dist/SlackQuick-Windows-x64.exe
+            dist/SlackQuick-macOS.zip
+      - name: Keep TextReplace release as "latest"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName,isDraft,isPrerelease \
+            --jq '[.[] | select((.tagName | startswith("slackquick")) | not) | select(.isDraft | not) | select(.isPrerelease | not)][0].tagName')
+          if [ -n "$tag" ] && [ "$tag" != "null" ]; then gh release edit "$tag" --latest -R ${{ github.repository }}; fi
+
+  report:
+    needs: [windows, mac, release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: logs
+          pattern: log-*
+      - name: Push build status to slackquick-ci-logs branch
+        run: |
+          mkdir r && cd r
+          git init -q -b slackquick-ci-logs
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          {
+            echo "# Build ${{ github.run_number }} (${{ github.sha }})"
+            echo "- windows: ${{ needs.windows.result }}"
+            echo "- mac: ${{ needs.mac.result }}"
+            echo "- release: ${{ needs.release.result }}"
+            for f in ../logs/*/*.log; do
+              [ -f "$f" ] || continue
+              echo; echo "## $f — errors"; echo '```'
+              grep -nE "error|fatal|WMC[0-9]" "$f" | grep -v "0 Error" | sort -u -t: -k2 | head -n 80 || true
+              echo '```'; echo "## $f — tail"; echo '```'
+              tail -n 40 "$f"
+              echo '```'
+            done
+          } > status.md
+          cp ../logs/log-screens/*.png . 2>/dev/null || true
+          cp ../logs/log-screens-mac/*.png . 2>/dev/null || true
+          git add -A
+          git commit -qm "build ${{ github.run_number }}"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" slackquick-ci-logs
