@@ -129,6 +129,12 @@ jobs:
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      # 릴리스 API가 새 태그를 직접 만들면 권한 오류(403)가 나서, 태그를 먼저 올림
+      - name: Push tag
+        run: |
+          git tag "slackquick-v$VERSION"
+          git push origin "slackquick-v$VERSION"
       - uses: actions/download-artifact@v7
         with:
           path: dist
@@ -137,7 +143,6 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: slackquick-v${{ env.VERSION }}
-          target_commitish: ${{ github.sha }}
           make_latest: 'true'
           name: SlackQuick v${{ env.VERSION }}
           body: |
