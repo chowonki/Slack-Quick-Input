@@ -15,7 +15,7 @@ Windows·macOS에서 단축키로 템플릿을 골라, 빈칸을 채우고, **�
 
 단축키는 설정에서 바꿀 수 있어요. Windows는 입력칸을 누른 뒤 원하는 키 조합을 누르면 돼요. 설정 화면 단축키는 끌 수도 있어요 (Windows: 입력칸에서 Backspace, macOS: 비워 두고 적용).
 
-Windows 버전은 WinUI 3(Windows 11 스타일)로 만들었고, 시스템의 밝은/어두운 테마를 따라가요. 템플릿은 고치는 즉시 자동 저장돼요.
+Windows 버전은 WinUI 3(Windows 11 스타일)로, macOS 버전은 SwiftUI로 만들었고, 시스템의 밝은/어두운 테마를 따라가요. macOS 26 이상에서는 팝업·버튼·도구 모음이 Liquid Glass로 보이고, 그 이전 버전에서는 반투명 머티리얼로 보여요 (Liquid Glass는 Xcode 26 이상으로 빌드해야 들어가요). 템플릿은 고치는 즉시 자동 저장돼요.
 
 ## 서식 문법
 

@@ -290,6 +290,7 @@ namespace SlackQuick
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.Children.Add(Ui.At(texts, 0, 0));
+            if (!string.IsNullOrWhiteSpace(t.Keyword)) grid.Children.Add(Ui.At(Ui.KeyCap(t.Keyword.Trim()), 0, 1)); // 키워드 배지
             return grid;
         }
 

@@ -114,6 +114,7 @@ namespace SlackQuick
             // ── 아래 버튼
             var hints = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             hints.Children.Add(Ui.Hint("Ctrl+Enter", "붙여넣기"));
+            hints.Children.Add(Ui.Hint("Esc", "취소"));
 
             var ok = new Button { Content = "붙여넣기", MinWidth = 110 };
             var accent = Ui.Res("AccentButtonStyle");

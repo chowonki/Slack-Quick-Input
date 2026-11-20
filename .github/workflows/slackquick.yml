@@ -68,7 +68,8 @@ jobs:
           path: dist/SlackQuick-Windows-x64.exe
 
   mac:
-    runs-on: macos-latest
+    # Liquid Glass(macOS 26 SDK)로 빌드하려면 Xcode 26 이상이 필요
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
       - name: Build universal binary

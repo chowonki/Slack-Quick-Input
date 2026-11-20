@@ -218,6 +218,7 @@ namespace SlackQuick
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.Children.Add(Ui.At(Ui.IconTile(glyph), 0, 0));
             grid.Children.Add(Ui.At(texts, 0, 1));
+            if (keyword != null) grid.Children.Add(Ui.At(Ui.KeyCap(keyword), 0, 2)); // 키워드 배지
 
             var row = new ListViewItem
             {
