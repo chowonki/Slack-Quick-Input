@@ -59,6 +59,9 @@ struct TemplateDetail: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 TextField("이름", text: $t.name).textFieldStyle(.roundedBorder)
+                TextField("키워드", text: $t.keyword).textFieldStyle(.roundedBorder)
+                    .frame(width: 130)
+                    .help("팝업에서 이 글자를 그대로 치면 이 템플릿이 맨 위로 와요")
                 Menu {
                     Button("복제", action: onDuplicate)
                     Button("위로 이동") { onMove(-1) }
@@ -98,6 +101,7 @@ struct TemplateDetail: View {
             HTMLPreview(bodyHTML: previewHTML).frame(minHeight: 110)
         }
         .onChange(of: t.name) { _ in Store.shared.save() }
+        .onChange(of: t.keyword) { _ in Store.shared.save() }
         .onChange(of: t.body) { _ in Store.shared.save() }
     }
 }
@@ -285,6 +289,17 @@ struct SettingsTab: View {
                         Button("적용", action: apply)
                     }
                     Text("예: Ctrl+Alt+Space, Cmd+Shift+K  (Ctrl · Alt · Shift · Cmd + 글자/숫자/Space/F1~F12)")
+                        .font(.caption).foregroundColor(.secondary)
+                    HStack {
+                        Text("설정 화면 단축키")
+                        Spacer()
+                        TextField("사용 안 함", text: $store.data.settingsHotkey)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 170)
+                            .onSubmit(apply)
+                        Button("적용", action: apply)
+                    }
+                    Text("어디서든 이 설정 화면을 바로 열어요. 비워 두고 적용하면 꺼져요.")
                         .font(.caption).foregroundColor(.secondary)
                     Divider()
                     Toggle("로그인 시 실행", isOn: $launchAtLogin)

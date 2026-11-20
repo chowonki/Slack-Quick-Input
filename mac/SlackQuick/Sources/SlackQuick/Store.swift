@@ -80,11 +80,13 @@ struct AppData: Codable {
     var smartSymbols: Bool = true
     var popupHotkey: String = "Ctrl+Alt+Space"
     var formatHotkey: String = "Ctrl+Alt+F"
+    /// 설정 화면을 여는 전역 단축키. 비어 있으면 쓰지 않음.
+    var settingsHotkey: String = "Ctrl+Alt+S"
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "SchemaVersion", templates = "Templates", snippets = "Snippets"
         case restoreClipboard = "RestoreClipboard", smartSymbols = "SmartSymbols"
-        case popupHotkey = "MacPopupHotkey", formatHotkey = "MacFormatHotkey"
+        case popupHotkey = "MacPopupHotkey", formatHotkey = "MacFormatHotkey", settingsHotkey = "MacSettingsHotkey"
     }
 
     init() {}
@@ -98,6 +100,7 @@ struct AppData: Codable {
         smartSymbols = (try? c.decode(Bool.self, forKey: .smartSymbols)) ?? true
         popupHotkey = (try? c.decode(String.self, forKey: .popupHotkey)) ?? "Ctrl+Alt+Space"
         formatHotkey = (try? c.decode(String.self, forKey: .formatHotkey)) ?? "Ctrl+Alt+F"
+        settingsHotkey = (try? c.decode(String.self, forKey: .settingsHotkey)) ?? "Ctrl+Alt+S"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -109,6 +112,7 @@ struct AppData: Codable {
         try c.encode(smartSymbols, forKey: .smartSymbols)
         try c.encode(popupHotkey, forKey: .popupHotkey)
         try c.encode(formatHotkey, forKey: .formatHotkey)
+        try c.encode(settingsHotkey, forKey: .settingsHotkey)
     }
 }
 

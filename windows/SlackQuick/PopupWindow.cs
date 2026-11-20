@@ -27,6 +27,9 @@ namespace SlackQuick
         bool _closed;
 
         public PopupItem Result { get; private set; }
+
+        /// <summary>Esc로 닫았는지 (다른 창을 눌러 닫힌 경우와 구분)</summary>
+        public bool Cancelled { get; private set; }
         public event Action<PopupItem> Picked;
         public event Action Dismissed;
 
@@ -69,7 +72,7 @@ namespace SlackQuick
                     case VirtualKey.Down: Move(1); e.Handled = true; break;
                     case VirtualKey.Up: Move(-1); e.Handled = true; break;
                     case VirtualKey.Enter: Pick(_list.SelectedItem as ListViewItem); e.Handled = true; break;
-                    case VirtualKey.Escape: CloseOnce(); e.Handled = true; break;
+                    case VirtualKey.Escape: Cancelled = true; CloseOnce(); e.Handled = true; break;
                 }
             };
 

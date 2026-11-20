@@ -3,6 +3,7 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var statusItem: NSStatusItem!
+    private var settingsMenuItem: NSMenuItem?
     private var popup: PopupController?
     private var fill: FillController?
     private var editorWindow: NSWindow?
@@ -29,7 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             openEditor(tab: 2)
         } else if Store.shared.isFirstRun {
             alert("SlackQuick 실행 중",
-                  "메뉴 막대의 아이콘에서 쓸 수 있어요.\n\n" + Store.shared.data.popupHotkey + ": 템플릿 팝업\n\n자동 붙여넣기를 위해 손쉬운 사용 권한을 허용해 주세요.")
+                  "메뉴 막대의 아이콘에서 쓸 수 있어요.\n\n" + Store.shared.data.popupHotkey + ": 템플릿 팝업\n"
+                  + Store.shared.data.settingsHotkey + ": 설정\n\n자동 붙여넣기를 위해 손쉬운 사용 권한을 허용해 주세요.")
             Paster.askAccessibility()
             openEditor(tab: 0)
         }
@@ -79,7 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(withTitle: "템플릿 팝업 열기", action: #selector(menuPopup), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "템플릿 관리", action: #selector(menuEditor), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "설정", action: #selector(menuSettings), keyEquivalent: ",").target = self
+        let settings = menu.addItem(withTitle: "설정", action: #selector(menuSettings), keyEquivalent: ",")
+        settings.target = self
+        settingsMenuItem = settings
         menu.addItem(.separator())
         menu.addItem(withTitle: "SlackQuick 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
@@ -107,6 +111,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !hc.register(id: 2, d.formatHotkey, handler: { [weak self] in
             self?.openFill(title: "서식 직접 입력", body: "{{내용}}", target: NSWorkspace.shared.frontmostApplication)
         }) { failed.append(d.formatHotkey) }
+        // 설정 화면 단축키: 비워 두면 쓰지 않음
+        let settingsKey = d.settingsHotkey.trimmingCharacters(in: .whitespaces)
+        var settingsOn = false
+        if !settingsKey.isEmpty {
+            settingsOn = hc.register(id: 3, settingsKey, handler: { [weak self] in self?.openEditor(tab: 2) })
+            if !settingsOn { failed.append(settingsKey) }
+        }
+        settingsMenuItem?.title = settingsOn ? "설정  (" + settingsKey + ")" : "설정"
         return failed.isEmpty ? nil : failed.joined(separator: ", ")
     }
 
@@ -164,7 +176,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         let view = EditorView(state: editorState, onApplyHotkeys: { [weak self] in
-            for hk in [Store.shared.data.popupHotkey, Store.shared.data.formatHotkey] where HotkeyCenter.parse(hk) == nil {
+            let d = Store.shared.data
+            let settingsKey = d.settingsHotkey.trimmingCharacters(in: .whitespaces)
+            var keys = [d.popupHotkey, d.formatHotkey]
+            if !settingsKey.isEmpty { keys.append(settingsKey) } // 비워 두면 끔
+            for hk in keys where HotkeyCenter.parse(hk) == nil {
                 return "단축키 형식이 올바르지 않아요: " + hk
             }
             Store.shared.save()

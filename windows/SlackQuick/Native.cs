@@ -199,6 +199,10 @@ namespace SlackQuick
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern uint RegisterClipboardFormatW(string name);
 
+        /// <summary>클립보드 내용이 바뀔 때마다 올라가는 번호</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetClipboardSequenceNumber();
+
         [DllImport("kernel32.dll")]
         public static extern IntPtr GlobalAlloc(uint flags, UIntPtr bytes);
 

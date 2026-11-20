@@ -187,6 +187,8 @@ namespace SlackQuick
                 return;
             }
 
+            uint sequence = Native.GetClipboardSequenceNumber();
+
             Native.Focus(target);
             Thread.Sleep(120);
             Native.SendPaste();
@@ -197,6 +199,8 @@ namespace SlackQuick
                 timer.Tick += (s, e) =>
                 {
                     timer.Stop();
+                    // 그 사이 사용자가 다른 걸 복사했다면 건드리지 않음
+                    if (Native.GetClipboardSequenceNumber() != sequence) return;
                     SetClipboard(old.Text, old.Html, old.Custom); // 서식까지 되돌림
                 };
                 timer.Start();

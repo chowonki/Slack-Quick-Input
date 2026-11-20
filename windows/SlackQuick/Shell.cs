@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
@@ -10,7 +11,7 @@ namespace SlackQuick
     /// <summary>트레이 아이콘, 전역 단축키, 창 흐름(팝업 → 빈칸 → 붙여넣기)</summary>
     static class Shell
     {
-        const int HotkeyPopup = 1, HotkeyFormat = 2;
+        const int HotkeyPopup = 1, HotkeyFormat = 2, HotkeySettings = 3;
         const uint TrayMessage = Native.WM_APP + 1;
         const int CmdEditor = 1, CmdSettings = 2, CmdGuide = 3, CmdFolder = 4, CmdMentions = 5, CmdExit = 9;
 
@@ -55,7 +56,8 @@ namespace SlackQuick
             }
             else if (firstRun)
             {
-                Notify("SlackQuick 실행 중", $"{Store.Data.PopupHotkey}: 템플릿 팝업\n{Store.Data.FormatHotkey}: 서식 직접 입력");
+                Notify("SlackQuick 실행 중", $"{Store.Data.PopupHotkey}: 템플릿 팝업\n{Store.Data.FormatHotkey}: 서식 직접 입력" +
+                    (string.IsNullOrWhiteSpace(Store.Data.SettingsHotkey) ? "" : $"\n{Store.Data.SettingsHotkey}: 설정"));
                 OpenEditor("templates");
             }
         }
@@ -104,7 +106,8 @@ namespace SlackQuick
             Native.AppendMenuW(menu, Native.MF_STRING | Native.MF_GRAYED, UIntPtr.Zero, $"팝업 열기    {Store.Data.PopupHotkey}");
             Native.AppendMenuW(menu, Native.MF_SEPARATOR, UIntPtr.Zero, null);
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)CmdEditor, "템플릿 관리");
-            Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)CmdSettings, "설정");
+            Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)CmdSettings,
+                string.IsNullOrWhiteSpace(Store.Data.SettingsHotkey) ? "설정" : $"설정    {Store.Data.SettingsHotkey}");
             Native.AppendMenuW(menu, Native.MF_SEPARATOR, UIntPtr.Zero, null);
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)CmdExit, "종료");
 
@@ -149,6 +152,7 @@ namespace SlackQuick
                     int id = wParam.ToInt32();
                     if (id == HotkeyPopup) OpenPopup(target);
                     else if (id == HotkeyFormat) OpenFree(target);
+                    else if (id == HotkeySettings) OpenEditor("settings");
                     return IntPtr.Zero;
                 }
                 if (msg == TrayMessage)
@@ -201,20 +205,25 @@ namespace SlackQuick
             if (Hwnd == IntPtr.Zero) return;
             Native.UnregisterHotKey(Hwnd, HotkeyPopup);
             Native.UnregisterHotKey(Hwnd, HotkeyFormat);
+            Native.UnregisterHotKey(Hwnd, HotkeySettings);
         }
 
         /// <returns>실패한 단축키 문자열, 모두 성공하면 null</returns>
         public static string RegisterHotkeys()
         {
             UnregisterHotkeys();
-            string failed = null;
-            if (!TryParseHotkey(Store.Data.PopupHotkey, out var m1, out var k1) ||
-                !Native.RegisterHotKey(Hwnd, HotkeyPopup, m1 | Native.MOD_NOREPEAT, k1))
-                failed = Store.Data.PopupHotkey;
-            if (!TryParseHotkey(Store.Data.FormatHotkey, out var m2, out var k2) ||
-                !Native.RegisterHotKey(Hwnd, HotkeyFormat, m2 | Native.MOD_NOREPEAT, k2))
-                failed = failed == null ? Store.Data.FormatHotkey : failed + ", " + Store.Data.FormatHotkey;
-            return failed;
+            var failed = new List<string>();
+            void Register(int id, string text, bool optional)
+            {
+                if (optional && string.IsNullOrWhiteSpace(text)) return; // 비워 두면 쓰지 않음
+                if (!TryParseHotkey(text, out uint mods, out uint vk) ||
+                    !Native.RegisterHotKey(Hwnd, id, mods | Native.MOD_NOREPEAT, vk))
+                    failed.Add(text ?? "");
+            }
+            Register(HotkeyPopup, Store.Data.PopupHotkey, false);
+            Register(HotkeyFormat, Store.Data.FormatHotkey, false);
+            Register(HotkeySettings, Store.Data.SettingsHotkey, true);
+            return failed.Count == 0 ? null : string.Join(", ", failed);
         }
 
         // ───────── 흐름 ─────────
@@ -227,7 +236,8 @@ namespace SlackQuick
             popup.Dismissed += () =>
             {
                 _busy = false;
-                Native.Focus(target);
+                // Esc로 닫았을 때만 원래 창으로 돌아감 (다른 창을 눌러 닫혔다면 그 창을 그대로 둠)
+                if (popup.Cancelled) Native.Focus(target);
             };
             popup.Picked += item =>
             {
