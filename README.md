@@ -8,13 +8,14 @@ Windows·macOS에서 단축키로 템플릿을 골라, 빈칸을 채우고, **�
 |---|---|---|
 | 템플릿 팝업 | `Ctrl+Shift+Space` | `Ctrl+Option+Space` |
 | 서식 직접 입력 | `Ctrl+Alt+F` | `Ctrl+Option+F` |
+| 설정 화면 열기 | `Ctrl+Alt+S` | `Ctrl+Option+S` |
 | 빈칸 창에서 붙여넣기 | `Ctrl+Enter` | `⌘Enter` |
 | 굵게 / 기울임 / 링크 | `Ctrl+B` / `Ctrl+I` / `Ctrl+K` | `⌘B` / `⌘I` / `⌘K` |
 | 취소선 / 코드 | `Ctrl+Shift+X` / `Ctrl+Shift+C` | `⇧⌘X` / `⇧⌘C` |
 
-단축키는 설정에서 바꿀 수 있어요. Windows는 입력칸을 누른 뒤 원하는 키 조합을 누르면 돼요.
+단축키는 설정에서 바꿀 수 있어요. Windows는 입력칸을 누른 뒤 원하는 키 조합을 누르면 돼요. 설정 화면 단축키는 끌 수도 있어요 (Windows: 입력칸에서 Backspace, macOS: 비워 두고 적용).
 
-Windows 버전은 WinUI 3(Windows 11 스타일)로 만들었고, 시스템의 밝은/어두운 테마를 따라가요. 템플릿은 고치는 즉시 자동 저장돼요.
+Windows 버전은 WinUI 3(Windows 11 스타일)로, macOS 버전은 SwiftUI로 만들었고, 시스템의 밝은/어두운 테마를 따라가요. macOS 26 이상에서는 팝업·버튼·도구 모음이 Liquid Glass로 보이고, 그 이전 버전에서는 반투명 머티리얼로 보여요 (Liquid Glass는 Xcode 26 이상으로 빌드해야 들어가요). 템플릿은 고치는 즉시 자동 저장돼요.
 
 ## 서식 문법
 
@@ -54,11 +55,11 @@ Windows 버전은 WinUI 3(Windows 11 스타일)로 만들었고, 시스템의 �
 
 ## 팝업 검색
 
-이름·키워드·내용으로 검색하고, 초성(`ㄱㅈ` → 공지)도 돼요. 키워드와 똑같이 입력하면 그 템플릿이 맨 위로 와요.
+이름·키워드·내용으로 검색하고, 초성(`ㄱㅈ` → 공지)도 돼요. 키워드와 똑같이 입력하면 그 템플릿이 맨 위로 와요. 키워드는 템플릿 관리 창의 이름 옆 칸에서 정해요.
 
 ## 설치
 
-[Releases](https://github.com/chowonki/TextReplace/releases) (`slackquick-v…` 태그)에서 받으세요.
+[Releases](https://github.com/chowonki/Slack-Quick-Input/releases) (`slackquick-v…` 태그)에서 받으세요.
 
 - **Windows**: `SlackQuick-Windows-x64.exe`를 원하는 곳에 두고 실행 → 트레이 아이콘. 설정에서 "Windows 시작 시 실행"을 켤 수 있어요.
 - **macOS 13+**: `SlackQuick-macOS.zip` 압축을 풀고 `SlackQuick.app`을 응용 프로그램 폴더로 옮긴 뒤 **우클릭 > 열기**. 자동 붙여넣기(⌘V)를 위해 **시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용**에서 SlackQuick을 켜 주세요. (새 버전으로 바꾸면 권한을 다시 켜야 할 수 있어요.)

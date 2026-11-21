@@ -19,7 +19,7 @@ namespace SlackQuick
 
         // 템플릿 페이지
         ListView _list;
-        TextBox _name, _body;
+        TextBox _name, _keyword, _body;
         ContentDialog _help;
         StackPanel _preview = new StackPanel { Spacing = 4 };
         FrameworkElement _detail, _empty;
@@ -27,6 +27,7 @@ namespace SlackQuick
 
         // 설정 페이지
         InfoBar _info;
+        bool _capturing; // 단축키 입력칸에 포커스가 있는 동안 (전역 단축키를 잠시 꺼 둠)
 
         readonly DispatcherTimer _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
 
@@ -83,7 +84,20 @@ namespace SlackQuick
             Content = root;
 
             _saveTimer.Tick += (s, e) => { _saveTimer.Stop(); Save(); };
-            Closed += (s, e) => { _saveTimer.Stop(); Save(); };
+            Closed += (s, e) =>
+            {
+                _saveTimer.Stop();
+                Save();
+                // 단축키 입력칸에 포커스를 둔 채 닫으면 단축키가 꺼진 채로 남으므로 다시 켬
+                if (_capturing) { _capturing = false; Shell.RegisterHotkeys(); }
+            };
+            Activated += (s, e) =>
+            {
+                // 입력칸에 포커스를 둔 채 다른 창으로 가도 단축키는 계속 동작해야 함
+                if (!_capturing) return;
+                if (e.WindowActivationState == WindowActivationState.Deactivated) Shell.RegisterHotkeys();
+                else Shell.UnregisterHotkeys();
+            };
 
             Ui.Place(this, 1000, 700);
             RebuildList(0);
@@ -178,7 +192,10 @@ namespace SlackQuick
             };
             ScrollViewer.SetVerticalScrollBarVisibility(_body, ScrollBarVisibility.Auto);
             FormatBar.EnableRichPaste(_body);
+            _keyword = new TextBox { Header = "키워드", PlaceholderText = "예: ㄱㅈ", Width = 150 };
+            ToolTipService.SetToolTip(_keyword, "팝업에서 이 글자를 그대로 치면 이 템플릿이 맨 위로 와요");
             _name.TextChanged += (s, e) => Edited();
+            _keyword.TextChanged += (s, e) => Edited();
             _body.TextChanged += (s, e) => Edited();
             _body.PreviewKeyDown += (s, e) =>
             {
@@ -204,8 +221,10 @@ namespace SlackQuick
             var nameRow = new Grid { ColumnSpacing = 8 };
             nameRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             nameRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            nameRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             nameRow.Children.Add(Ui.At(_name, 0, 0));
-            nameRow.Children.Add(Ui.At(moreButton, 0, 1));
+            nameRow.Children.Add(Ui.At(_keyword, 0, 1));
+            nameRow.Children.Add(Ui.At(moreButton, 0, 2));
 
             var editStack = new StackPanel { Spacing = 10 };
             editStack.Children.Add(nameRow);
@@ -271,6 +290,7 @@ namespace SlackQuick
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.Children.Add(Ui.At(texts, 0, 0));
+            if (!string.IsNullOrWhiteSpace(t.Keyword)) grid.Children.Add(Ui.At(Ui.KeyCap(t.Keyword.Trim()), 0, 1)); // 키워드 배지
             return grid;
         }
 
@@ -294,6 +314,7 @@ namespace SlackQuick
             _empty.Visibility = t == null ? Visibility.Visible : Visibility.Collapsed;
             _loading = true;
             _name.Text = t?.Name ?? "";
+            _keyword.Text = t?.Keyword ?? "";
             _body.Text = t?.Body ?? "";
             _loading = false;
             UpdatePreview();
@@ -314,6 +335,7 @@ namespace SlackQuick
             var t = Selected;
             if (t == null) return;
             t.Name = _name.Text ?? "";
+            t.Keyword = (_keyword.Text ?? "").Trim();
             t.Body = Ui.Normalize(_body.Text);
             if (_list.SelectedItem is ListViewItem row) row.Content = RowContent(t);
             UpdatePreview();
@@ -602,6 +624,9 @@ namespace SlackQuick
             body.Children.Add(SettingRow("\uE721", "템플릿 팝업 단축키", "칸을 누른 뒤 원하는 키 조합을 누르면 바뀌어요.",
                 HotkeyBox(() => Store.Data.PopupHotkey, v => Store.Data.PopupHotkey = v)));
 
+            body.Children.Add(SettingRow("\uE713", "설정 화면 단축키", "어디서든 이 설정 화면을 바로 열어요. 칸을 누른 뒤 Backspace를 누르면 꺼져요.",
+                HotkeyBox(() => Store.Data.SettingsHotkey, v => Store.Data.SettingsHotkey = v, true)));
+
             bool auto = false;
             try { auto = Shell.AutoStart; } catch { }
             var autostart = new ToggleSwitch { IsOn = auto, MinWidth = 0, OnContent = "켬", OffContent = "끔" };
@@ -684,7 +709,8 @@ namespace SlackQuick
         }
 
         /// <summary>누른 키 조합을 그대로 받아 적는 단축키 입력칸</summary>
-        TextBox HotkeyBox(Func<string> get, Action<string> set)
+        /// <param name="optional">true면 Backspace·Delete로 비워서 끌 수 있음</param>
+        TextBox HotkeyBox(Func<string> get, Action<string> set, bool optional = false)
         {
             var box = new TextBox
             {
@@ -692,13 +718,18 @@ namespace SlackQuick
                 IsReadOnly = true,
                 Width = 200,
                 TextAlignment = TextAlignment.Center,
-                PlaceholderText = "키 조합을 누르세요",
+                PlaceholderText = optional ? "사용 안 함" : "키 조합을 누르세요",
             };
-            ToolTipService.SetToolTip(box, "누른 뒤 Ctrl·Alt·Shift·Win 과 함께 키를 누르세요");
+            ToolTipService.SetToolTip(box, "누른 뒤 Ctrl·Alt·Shift·Win 과 함께 키를 누르세요" + (optional ? " (Backspace: 끄기)" : ""));
 
-            box.GotFocus += (s, e) => Shell.UnregisterHotkeys(); // 입력 중에는 기존 단축키가 반응하지 않게
+            box.GotFocus += (s, e) =>
+            {
+                _capturing = true;
+                Shell.UnregisterHotkeys(); // 입력 중에는 기존 단축키가 반응하지 않게
+            };
             box.LostFocus += (s, e) =>
             {
+                _capturing = false;
                 box.Text = get();
                 Shell.RegisterHotkeys();
             };
@@ -721,6 +752,14 @@ namespace SlackQuick
                 if (Ui.Alt) combo += "Alt+";
                 if (Ui.Shift) combo += "Shift+";
                 if (Ui.IsDown(VirtualKey.LeftWindows) || Ui.IsDown(VirtualKey.RightWindows)) combo += "Win+";
+                if (optional && combo.Length == 0 && (key == VirtualKey.Back || key == VirtualKey.Delete))
+                {
+                    set("");
+                    box.Text = "";
+                    Save();
+                    ShowInfo(InfoBarSeverity.Success, "단축키를 껐어요", "다시 쓰려면 칸을 누른 뒤 원하는 키 조합을 누르세요.");
+                    return;
+                }
                 if (combo.Length == 0)
                 {
                     ShowInfo(InfoBarSeverity.Warning, "수정키가 필요해요", "Ctrl·Alt·Shift·Win 중 하나 이상과 함께 눌러 주세요.");
@@ -740,10 +779,11 @@ namespace SlackQuick
                 set(combo);
                 var failed = Shell.RegisterHotkeys();
                 Shell.UnregisterHotkeys(); // 입력칸에 포커스가 있는 동안은 꺼 둠
-                if (failed != null)
+                // 이번에 누른 조합이 실패했을 때만 되돌림 (다른 단축키의 실패 때문에 막히지 않게)
+                if (failed != null && (", " + failed + ", ").Contains(", " + combo + ", "))
                 {
                     set(before);
-                    ShowInfo(InfoBarSeverity.Error, "단축키 등록 실패", $"{combo} 는 다른 프로그램이 쓰는 중이에요. 다른 조합을 눌러 주세요.");
+                    ShowInfo(InfoBarSeverity.Error, "단축키 등록 실패", $"{combo} 는 다른 프로그램이나 SlackQuick의 다른 기능이 쓰는 중이에요. 다른 조합을 눌러 주세요.");
                     return;
                 }
                 box.Text = combo;

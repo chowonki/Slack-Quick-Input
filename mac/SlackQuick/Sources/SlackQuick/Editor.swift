@@ -20,7 +20,7 @@ struct HTMLPreview: NSViewRepresentable {
             tv.textContainerInset = NSSize(width: 6, height: 6)
         }
         scroll.drawsBackground = false
-        scroll.borderType = .lineBorder
+        scroll.borderType = .noBorder
         return scroll
     }
 
@@ -32,12 +32,23 @@ struct HTMLPreview: NSViewRepresentable {
 struct TemplateRow: View {
     @ObservedObject var t: Template
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(t.name.isEmpty ? "(이름 없음)" : t.name).fontWeight(.medium).lineLimit(1)
-            Text(t.body.replacingOccurrences(of: "\n", with: " ⏎ "))
-                .font(.caption).foregroundColor(.secondary).lineLimit(1)
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(t.name.isEmpty ? "(이름 없음)" : t.name).fontWeight(.medium).lineLimit(1)
+                Text(t.body.replacingOccurrences(of: "\n", with: " ⏎ "))
+                    .font(.caption).foregroundColor(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            if !t.keyword.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(t.keyword.trimmingCharacters(in: .whitespaces))
+                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+            }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
 }
 
@@ -56,15 +67,18 @@ struct TemplateDetail: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 TextField("이름", text: $t.name).textFieldStyle(.roundedBorder)
+                TextField("키워드", text: $t.keyword).textFieldStyle(.roundedBorder)
+                    .frame(width: 130)
+                    .help("팝업에서 이 글자를 그대로 치면 이 템플릿이 맨 위로 와요")
                 Menu {
                     Button("복제", action: onDuplicate)
                     Button("위로 이동") { onMove(-1) }
                     Button("아래로 이동") { onMove(1) }
                     Divider()
-                    Button("삭제", action: onDelete)
+                    Button("삭제", role: .destructive, action: onDelete)
                 } label: {
                     Image(systemName: "ellipsis")
                 }
@@ -86,8 +100,10 @@ struct TemplateDetail: View {
             }
             TextEditor(text: $t.body)
                 .font(.system(size: 13, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .padding(6)
                 .frame(minHeight: 150)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.gray.opacity(0.35)))
+                .contentCard()
 
             HStack(spacing: 6) {
                 Text("{{이름}}처럼 쓰면 붙여넣을 때 물어봐요.").font(.caption).foregroundColor(.secondary)
@@ -95,9 +111,12 @@ struct TemplateDetail: View {
             }
 
             Text("Slack 미리보기").fontWeight(.semibold).padding(.top, 4)
-            HTMLPreview(bodyHTML: previewHTML).frame(minHeight: 110)
+            HTMLPreview(bodyHTML: previewHTML)
+                .frame(minHeight: 110)
+                .contentCard()
         }
         .onChange(of: t.name) { _ in Store.shared.save() }
+        .onChange(of: t.keyword) { _ in Store.shared.save() }
         .onChange(of: t.body) { _ in Store.shared.save() }
     }
 }
@@ -113,28 +132,33 @@ struct TemplatesTab: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Button(action: add) {
                     Label("새 템플릿", systemImage: "plus").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .glassButton(prominent: true)
 
                 List(selection: $selection) {
                     ForEach(store.data.templates) { t in
                         TemplateRow(t: t).tag(Optional(t.id))
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .contentCard(cornerRadius: 12)
             }
-            .frame(width: 260)
+            .frame(width: 270)
 
             if let t = selected {
                 TemplateDetail(t: t, state: state, onDuplicate: duplicate, onMove: move, onDelete: delete)
                     .id(t.id)
             } else {
-                Text("왼쪽에서 템플릿을 고르거나 '새 템플릿'으로 추가해 주세요.")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.badge.plus").font(.system(size: 34)).foregroundStyle(.secondary)
+                    Text("왼쪽에서 템플릿을 고르거나 '새 템플릿'으로 추가해 주세요.")
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .onAppear { if selection == nil { selection = store.data.templates.first?.id } }
@@ -187,27 +211,38 @@ struct MentionsTab: View {
 
     private var mentions: [Snippet] { store.data.snippets.filter { Markup.isMention($0) } }
 
+    private func step(_ n: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(n)")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color.accentColor))
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("붙여넣은 @이름은 Slack에서 알림이 가지 않아요. Slack에서 복사한 진짜 멘션을 한 번 등록해 두면, 그 뒤로는 이름만 써도 멘션으로 들어가요.")
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("1.  Slack 입력창에 등록할 사람·그룹을 @로 넣고(목록에서 선택), 그 글자를 선택해 복사하세요. 보낸 메시지에서 복사해도 돼요.")
-                    Text("2.  아래 '클립보드에서 가져오기'를 누르세요.")
-                    Text("3.  이제 빈칸에 @이름을 쓰면 실제 멘션으로 붙여넣어져요.")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(6)
+            VStack(alignment: .leading, spacing: 8) {
+                step(1, "Slack 입력창에 등록할 사람·그룹을 @로 넣고(목록에서 선택), 그 글자를 선택해 복사하세요. 보낸 메시지에서 복사해도 돼요.")
+                step(2, "아래 '클립보드에서 가져오기'를 누르세요.")
+                step(3, "이제 빈칸에 @이름을 쓰면 실제 멘션으로 붙여넣어져요.")
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentCard(cornerRadius: 12)
 
             HStack(spacing: 10) {
                 Button(action: importMentions) {
                     Label("클립보드에서 가져오기", systemImage: "doc.on.clipboard")
                 }
-                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .glassButton(prominent: true)
                 Text(message).font(.caption).foregroundColor(.secondary).lineLimit(2)
             }
 
@@ -236,6 +271,8 @@ struct MentionsTab: View {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .contentCard(cornerRadius: 12)
             }
         }
     }
@@ -264,6 +301,36 @@ struct MentionsTab: View {
     }
 }
 
+/// 설정 한 줄: 아이콘 · 제목 · 설명 · 조작부
+struct SettingRow<Control: View>: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    @ViewBuilder var control: () -> Control
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if !detail.isEmpty {
+                    Text(detail).font(.caption).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 12)
+            control()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentCard(cornerRadius: 12)
+    }
+}
+
 struct SettingsTab: View {
     @ObservedObject var store = Store.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -271,23 +338,33 @@ struct SettingsTab: View {
     @State private var showAdvanced = false
     var onApplyHotkeys: () -> String?
 
+    private func hotkeyField(_ placeholder: String, _ text: Binding<String>) -> some View {
+        HStack(spacing: 8) {
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.center)
+                .frame(width: 160)
+                .onSubmit(apply)
+            Button("적용", action: apply).glassButton()
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("템플릿 팝업 단축키")
-                        Spacer()
-                        TextField("Ctrl+Alt+Space", text: $store.data.popupHotkey)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 170)
-                            .onSubmit(apply)
-                        Button("적용", action: apply)
-                    }
-                    Text("예: Ctrl+Alt+Space, Cmd+Shift+K  (Ctrl · Alt · Shift · Cmd + 글자/숫자/Space/F1~F12)")
-                        .font(.caption).foregroundColor(.secondary)
-                    Divider()
-                    Toggle("로그인 시 실행", isOn: $launchAtLogin)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                SettingRow(symbol: "magnifyingglass", title: "템플릿 팝업 단축키",
+                           detail: "예: Ctrl+Alt+Space, Cmd+Shift+K  (Ctrl · Alt · Shift · Cmd + 글자/숫자/Space/F1~F12)") {
+                    hotkeyField("Ctrl+Alt+Space", $store.data.popupHotkey)
+                }
+                SettingRow(symbol: "gearshape", title: "설정 화면 단축키",
+                           detail: "어디서든 이 설정 화면을 바로 열어요. 비워 두고 적용하면 꺼져요.") {
+                    hotkeyField("사용 안 함", $store.data.settingsHotkey)
+                }
+                SettingRow(symbol: "power", title: "로그인 시 실행",
+                           detail: "로그인하면 메뉴 막대에서 자동으로 실행돼요.") {
+                    Toggle("", isOn: $launchAtLogin)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                         .onChange(of: launchAtLogin) { on in
                             do {
                                 if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -296,50 +373,61 @@ struct SettingsTab: View {
                             }
                         }
                 }
-                .padding(6)
-            }
 
-            DisclosureGroup("고급 설정", isExpanded: $showAdvanced) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("서식 직접 입력 단축키")
-                        Spacer()
-                        TextField("Ctrl+Alt+F", text: $store.data.formatHotkey)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 170)
-                            .onSubmit(apply)
-                        Button("적용", action: apply)
-                    }
-                    Toggle("붙여넣은 뒤 원래 복사해 둔 내용 되돌리기", isOn: $store.data.restoreClipboard)
-                        .onChange(of: store.data.restoreClipboard) { _ in store.save() }
-                    Toggle("스마트 따옴표와 기호  (\" \" → “ ”,  -- → —,  ... → …,  -> → →,  <- → ←)", isOn: $store.data.smartSymbols)
-                        .onChange(of: store.data.smartSymbols) { _ in store.save() }
-                    HStack {
-                        Button("저장 폴더 열기") { NSWorkspace.shared.open(store.folder) }
-                        Button("손쉬운 사용 권한 확인") {
-                            if Paster.isTrusted {
-                                message = "손쉬운 사용 권한이 허용돼 있어요. 자동 붙여넣기가 가능해요."
-                            } else {
-                                Paster.askAccessibility()
+                DisclosureGroup("고급 설정", isExpanded: $showAdvanced) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        SettingRow(symbol: "square.and.pencil", title: "서식 직접 입력 단축키",
+                                   detail: "템플릿 없이 바로 글을 써서 붙여넣는 창을 열어요.") {
+                            hotkeyField("Ctrl+Alt+F", $store.data.formatHotkey)
+                        }
+                        SettingRow(symbol: "doc.on.clipboard", title: "클립보드 복원",
+                                   detail: "붙여넣은 뒤 원래 복사해 둔 내용을 되돌려 놔요.") {
+                            Toggle("", isOn: $store.data.restoreClipboard)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .onChange(of: store.data.restoreClipboard) { _ in store.save() }
+                        }
+                        SettingRow(symbol: "textformat", title: "스마트 따옴표와 기호",
+                                   detail: "\" \" → “ ”,  -- → —,  ... → …,  -> → →,  <- → ←") {
+                            Toggle("", isOn: $store.data.smartSymbols)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .onChange(of: store.data.smartSymbols) { _ in store.save() }
+                        }
+                        SettingRow(symbol: "folder", title: "저장 위치", detail: store.fileURL.path) {
+                            Button("폴더 열기") { NSWorkspace.shared.open(store.folder) }.glassButton()
+                        }
+                        SettingRow(symbol: "hand.raised", title: "손쉬운 사용 권한",
+                                   detail: "자동 붙여넣기(⌘V)에 필요해요.") {
+                            Button("확인") {
+                                if Paster.isTrusted {
+                                    message = "손쉬운 사용 권한이 허용돼 있어요. 자동 붙여넣기가 가능해요."
+                                } else {
+                                    Paster.askAccessibility()
+                                }
                             }
+                            .glassButton()
                         }
                     }
+                    .padding(.top, 8)
+                }
+                .padding(.top, 6)
+                .padding(.horizontal, 2)
+
+                if !message.isEmpty {
+                    Text(message).font(.callout).foregroundColor(.secondary).padding(.top, 4)
+                }
+
+                HStack(spacing: 12) {
+                    Button("SlackQuick 종료") { NSApp.terminate(nil) }.glassButton()
+                    Text("창을 닫아도 메뉴 막대에서 계속 실행돼요.").font(.caption).foregroundColor(.secondary)
                 }
                 .padding(.top, 8)
-                .padding(.leading, 4)
             }
-
-            if !message.isEmpty {
-                Text(message).font(.callout).foregroundColor(.secondary)
-            }
-
-            HStack(spacing: 12) {
-                Button("SlackQuick 종료") { NSApp.terminate(nil) }
-                Text("창을 닫아도 메뉴 막대에서 계속 실행돼요.").font(.caption).foregroundColor(.secondary)
-            }
-            Spacer()
+            .frame(maxWidth: 680, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 8)
         }
-        .frame(maxWidth: 620, alignment: .leading)
     }
 
     private func apply() {
@@ -385,7 +473,7 @@ struct HelpView: View {
             }
             HStack {
                 Spacer()
-                Button("닫기") { state.showHelp = false }.keyboardShortcut(.defaultAction)
+                Button("닫기") { state.showHelp = false }.keyboardShortcut(.defaultAction).glassButton(prominent: true)
             }
         }
         .padding(20)

@@ -68,7 +68,8 @@ jobs:
           path: dist/SlackQuick-Windows-x64.exe
 
   mac:
-    runs-on: macos-latest
+    # Liquid Glass(macOS 26 SDK)로 빌드하려면 Xcode 26 이상이 필요
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
       - name: Build universal binary
@@ -128,6 +129,12 @@ jobs:
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      # 릴리스 API가 새 태그를 직접 만들면 권한 오류(403)가 나서, 태그를 먼저 올림
+      - name: Push tag
+        run: |
+          git tag "slackquick-v$VERSION"
+          git push origin "slackquick-v$VERSION"
       - uses: actions/download-artifact@v7
         with:
           path: dist
@@ -136,8 +143,7 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: slackquick-v${{ env.VERSION }}
-          target_commitish: ${{ github.sha }}
-          make_latest: 'false'
+          make_latest: 'true'
           name: SlackQuick v${{ env.VERSION }}
           body: |
             - Windows: `SlackQuick-Windows-x64.exe` (설치 없이 실행)
@@ -145,13 +151,6 @@ jobs:
           files: |
             dist/SlackQuick-Windows-x64.exe
             dist/SlackQuick-macOS.zip
-      - name: Keep TextReplace release as "latest"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag=$(gh release list -R ${{ github.repository }} --limit 100 --json tagName,isDraft,isPrerelease \
-            --jq '[.[] | select((.tagName | startswith("slackquick")) | not) | select(.isDraft | not) | select(.isPrerelease | not)][0].tagName')
-          if [ -n "$tag" ] && [ "$tag" != "null" ]; then gh release edit "$tag" --latest -R ${{ github.repository }}; fi
 
   report:
     needs: [windows, mac, release]

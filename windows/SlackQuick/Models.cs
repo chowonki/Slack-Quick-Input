@@ -48,6 +48,9 @@ namespace SlackQuick
         public bool SmartSymbols { get; set; } = true;
         public string PopupHotkey { get; set; } = "Ctrl+Shift+Space";
         public string FormatHotkey { get; set; } = "Ctrl+Alt+F";
+
+        /// <summary>설정 화면을 여는 전역 단축키. 비어 있으면 쓰지 않음.</summary>
+        public string SettingsHotkey { get; set; } = "Ctrl+Alt+S";
     }
 
     public static class Store
@@ -76,6 +79,11 @@ namespace SlackQuick
                     {
                         d.Templates ??= new List<Template>();
                         d.Snippets ??= new List<Snippet>();
+                        d.Templates.RemoveAll(x => x == null);
+                        d.Snippets.RemoveAll(x => x == null);
+                        d.PopupHotkey ??= "Ctrl+Shift+Space";
+                        d.FormatHotkey ??= "Ctrl+Alt+F";
+                        d.SettingsHotkey ??= "Ctrl+Alt+S";
                         if (d.SchemaVersion < 2)
                         {
                             // 1.2: 멘션 + 서식 있는 클립보드용 기본 템플릿 추가
@@ -84,8 +92,6 @@ namespace SlackQuick
                             Data = d;
                             try { Save(); } catch { }
                         }
-                        d.PopupHotkey ??= "Ctrl+Shift+Space";
-                        d.FormatHotkey ??= "Ctrl+Alt+F";
                         Data = d;
                         return;
                     }
@@ -103,7 +109,10 @@ namespace SlackQuick
         public static void Save()
         {
             Directory.CreateDirectory(Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(Data, Options));
+            // 임시 파일에 쓴 뒤 바꿔치기: 쓰는 도중 꺼져도 템플릿 파일이 깨지지 않게
+            string temp = FilePath + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(Data, Options));
+            File.Move(temp, FilePath, true);
         }
 
         public static Template ShareTemplate() => new Template
